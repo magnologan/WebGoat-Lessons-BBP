@@ -21,7 +21,7 @@
         <module>blind-numeric-sql-injection</module>
         <module>blind-script</module>
         <module>blind-string-sql-injection</module>
-        <module>el-injection</module>
+        <!-- <module>el-injection</module> -->
         <module>insecure-deserialization</module>
         <!-- <module>bypass-html-field-restrictions</module>
         <module>challenge</module>
@@ -41,7 +41,7 @@
         <!-- <module>dom-injection</module>
         <module>dom-xss</module>
         <module>dos-login</module>-->
-        <module>encoding</module>
+        <!-- <module>encoding</module> -->
         <!--<module>fail-open-authentication</module>
         <module>forced-browsing</module>
         <module>forgot-password</module>
