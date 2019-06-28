@@ -11,6 +11,16 @@ import org.owasp.webgoat.session.WebSession;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ByteArrayInputStream;
+import java.util.concurrent.TimeUnit;
+import java.io.Serializable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.*;
+import java.net.URLDecoder;
+import java.util.Base64;
 
 /***************************************************************************************************
  * 
@@ -43,8 +53,9 @@ import java.io.ByteArrayInputStream;
  * @created October 28, 2003
  */
 
-public class InsecureDeserialization extends SequentialLessonAdapter {
+public class InsecureDeserialization extends SequentialLessonAdapter implements Serializable{
 
+    private final static Logger LOG = LoggerFactory.getLogger(InsecureDeserialization.class);
     // define a constant for the field name
     private static final String INPUT = "input";
     private String token;
@@ -54,7 +65,7 @@ public class InsecureDeserialization extends SequentialLessonAdapter {
         ElementContainer ec = new ElementContainer();
         try
         {
-            String b64token, result;
+            String b64token, result = "", output = "";
             byte [] data;
             ObjectInputStream ois;
             Object o;
@@ -64,7 +75,7 @@ public class InsecureDeserialization extends SequentialLessonAdapter {
 
             // Create Input
             ec.addElement(new P());
-            ec.addElement(new Div().addElement(new StringElement("Try to change this serialized object in order to delay the page response for exactly 5 seconds.")));
+            ec.addElement(new Div().addElement(new StringElement("Try to change this serialized object in order to put a test file here: /tmp/test.")));
             token = s.getParser().getRawParameter(INPUT, "rO0ABXQAVklmIHlvdSBkZXNlcmlhbGl6ZSBtZSBkb3duLCBJIHNoYWxsIGJlY29tZSBtb3JlIHBvd2VyZnVsIHRoYW4geW91IGNhbiBwb3NzaWJseSBpbWFnaW5l");
             Input serializedToken = new Input(Input.TEXT, INPUT, token.toString());
             ec.addElement(serializedToken);
@@ -76,41 +87,70 @@ public class InsecureDeserialization extends SequentialLessonAdapter {
             Element b = ECSFactory.makeButton(submittext);
             ec.addElement(b);
             
-            b64token = token.replace('-', '+').replace('_', '/');
+            // b64token = token.replace('-', '+').replace('_', '/');
+            
 
+            byte[] decoded = null;
+            String urlDecoded = "";
             try {
-                data = Base64.getDecoder().decode(b64token);
+                urlDecoded = URLDecoder.decode(token, "UTF-8");
+                urlDecoded = urlDecoded
+                        .replace(" ", "+")
+                        .replace('-', '+')
+                        .replace('_', '/')
+                        .replace("=", "");
+                LOG.info("Payload: " + token);
+                decoded = Base64.getDecoder().decode(urlDecoded);
 
-                String test = new String(data);
-                System.out.println(test);
-                ois = new ObjectInputStream( new ByteArrayInputStream(data) );    
+            } catch(Exception e){
+                LOG.error("Base64 decoded: " + urlDecoded);
+                LOG.error("Base64 decoding exception: " + token, e);
+                result = "Base64 error";
+            }
+            try {
 
-                before = System.currentTimeMillis();
+                if (decoded == null || decoded.length == 0){
+                    result = "Nothing to deserialize";
+                }
+
+                ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
+                ObjectInputStream in = new ObjectInputStream(bis);
+                LOG.info("Going to deserialize...");
 
                 try {
-                    o = ois.readObject();
-                } catch (Exception e) {
-                    o = null;
-                }
-                after = System.currentTimeMillis();
-                ois.close();
+                    final Object obj = in.readObject();
+                    LOG.info("Deserialized");
 
-                delay = (int)(after - before);
-                if ( delay > 7000 ) {
-                    result = "Too long... Failed.";
-                } else if ( delay < 3000 ) {
-                    result = "Too short... Failed.";
-                } else {
-                    result = "Congrats!";
-                    //return makeSuccess(s);   
-                }
+                    if (obj == null){
+                        LOG.info("Deserialized: null");
+                    }
 
+                    File tempFile = new File("/tmp/test");
+                    boolean fileExists = tempFile.exists();
+
+
+                    if ( tempFile.exists() ) {
+                        result = "Success!";
+                        tempFile.delete();
+                        return makeSuccess(s);   
+                    } else {
+                        result = "File is not there yet.";
+                    }
+
+                    LOG.info("Obj: " + obj.getClass().getCanonicalName());
+                    LOG.info("Deserialized: " + obj);
+                    output = "Deserialized Object Is: " + obj; 
+                } catch(EOFException e){
+                    LOG.error("Deserialization exception", e);
+                }
             } catch (Exception e) {
-                result = "Not Base64!";
+                result = e.toString();
             }
 
             ec.addElement(new P());
             ec.addElement(new Div().addElement(new StringElement(result)));
+            ec.addElement(new P());
+            ec.addElement(new Div().addElement(new StringElement(output)));
 
         }
         catch (Exception e)
